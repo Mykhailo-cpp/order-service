@@ -10,7 +10,10 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
       properties:
-        spring.json.add.type.headers: false
+        spring.json.type.mapping: >
+          ORDER_CREATED:com.example.order_service.dto.OrderCreatedEvent,
+          ORDER_UPDATED:com.example.order_service.dto.OrderUpdatedEvent,
+          ORDER_CANCELLED:com.example.order_service.dto.OrderCancelledEvent
     consumer:
       group-id: order-service
       auto-offset-reset: earliest

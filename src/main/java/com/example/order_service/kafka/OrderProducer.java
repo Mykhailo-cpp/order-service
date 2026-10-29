@@ -15,7 +15,7 @@ public class OrderProducer {
     private final KafkaTemplate<String, OrderCreatedEvent> kafkaTemplate;
 
     public void publish(OrderCreatedEvent event){
-        kafkaTemplate.send(KafkaTopicConfig.ORDER_CREATED_TOPIC, event.orderId().toString(), event)
+        kafkaTemplate.send(KafkaTopicConfig.ORDER_EVENTS_TOPIC, event.orderId().toString(), event)
                 .whenComplete((result, exception) -> {
                    if(exception != null){
                        log.error("Failed to publish order {}", event.orderId(), exception);
