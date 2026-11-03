@@ -3,6 +3,8 @@ package com.example.order_service.service.impl;
 
 import com.example.order_service.dto.OrderCreatedEvent;
 import com.example.order_service.dto.OrderRequest;
+import com.example.order_service.dto.OrderUpdatedEvent;
+import com.example.order_service.dto.UpdateOrderRequest;
 import com.example.order_service.kafka.OrderProducer;
 import com.example.order_service.model.Order;
 import com.example.order_service.model.OrderStatus;
@@ -47,7 +49,7 @@ public class OrderServiceImpl implements OrderService {
                 savedOrder.getCreatedAt()
         );
 
-        orderProducer.publish(event);
+        orderProducer.publishCreated(event);
 
         return event;
     }
