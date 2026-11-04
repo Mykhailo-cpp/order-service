@@ -124,12 +124,96 @@ class OrderKafkaIntegrationTest {
                         .get().extracting(Order::getStatus).isEqualTo(OrderStatus.AVAILABLE));
     }
 
+    @Test
+    void postOrders_withCorrelationId_echoesItAndPropagatesItToKafka() throws Exception {
+        HttpResponse<String> response = postOrder("""
+                {"customerId":21,"product":"router","quantity":1}""", "corr-test-123");
+
+        assertThat(response.headers().firstValue("X-Correlation-Id")).contains("corr-test-123");
+        String orderId = MAPPER.readTree(response.body()).get("orderId").asText();
+
+        try (KafkaConsumer<String, String> consumer = newConsumer(KafkaTopicConfig.ORDER_EVENTS_TOPIC)) {
+            ConsumerRecord<String, String> record =
+                    pollFor(consumer, r -> r.value().contains(orderId), Duration.ofSeconds(15));
+            assertThat(record).isNotNull();
+            assertThat(correlationHeader(record)).isEqualTo("corr-test-123");
+        }
+    }
+
+    @Test
+    void postOrders_withoutCorrelationId_generatesOneAndPropagatesIt() throws Exception {
+        HttpResponse<String> response = postOrder("""
+                {"customerId":22,"product":"switch","quantity":1}""");
+
+        String generated = response.headers().firstValue("X-Correlation-Id").orElseThrow();
+        assertThat(generated).isNotBlank();
+        String orderId = MAPPER.readTree(response.body()).get("orderId").asText();
+
+        try (KafkaConsumer<String, String> consumer = newConsumer(KafkaTopicConfig.ORDER_EVENTS_TOPIC)) {
+            ConsumerRecord<String, String> record =
+                    pollFor(consumer, r -> r.value().contains(orderId), Duration.ofSeconds(15));
+            assertThat(record).isNotNull();
+            assertThat(correlationHeader(record)).isEqualTo(generated);
+        }
+    }
+
+    @Test
+    void postOrders_withUnsafeCorrelationId_isReplaced() throws Exception {
+        // header injection / log forging attempt: must not be echoed or logged as is
+        HttpResponse<String> response = postOrder("""
+                {"customerId":23,"product":"cable","quantity":1}""", "bad id with spaces");
+        assertThat(response.headers().firstValue("X-Correlation-Id").orElseThrow())
+                .isNotEqualTo("bad id with spaces")
+                .matches("[A-Za-z0-9._-]{1,64}");
+    }
+
+    @Test
+    void healthEndpoint_reportsUpWithKafkaAndDatabase() throws Exception {
+        HttpResponse<String> response = get("/actuator/health");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        JsonNode health = MAPPER.readTree(response.body());
+        assertThat(health.get("status").asText()).isEqualTo("UP");
+        assertThat(health.get("components").has("kafka")).isTrue();
+        assertThat(health.get("components").has("db")).isTrue();
+    }
+
+    @Test
+    void prometheusEndpoint_exposesMetricsTaggedWithApplicationName() throws Exception {
+        postOrder("""
+                {"customerId":24,"product":"hub","quantity":1}""");
+
+        HttpResponse<String> response = get("/actuator/prometheus");
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body())
+                .contains("jvm_memory_used_bytes")
+                .contains("http_server_requests_seconds_count")
+                .contains("application=\"order-service\"");
+    }
+
     private HttpResponse<String> postOrder(String json) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/orders"))
+        return postOrder(json, null);
+    }
+
+    private HttpResponse<String> postOrder(String json, String correlationId) throws Exception {
+        HttpRequest.Builder request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + "/orders"))
                 .header("Content-Type", "application/json")
-                .POST(HttpRequest.BodyPublishers.ofString(json))
-                .build();
+                .POST(HttpRequest.BodyPublishers.ofString(json));
+        if (correlationId != null) {
+            request.header("X-Correlation-Id", correlationId);
+        }
+        return HttpClient.newHttpClient().send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> get(String path) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create("http://localhost:" + port + path)).GET().build();
         return HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private String correlationHeader(ConsumerRecord<String, String> record) {
+        var header = record.headers().lastHeader("X-Correlation-Id");
+        return header == null ? null : new String(header.value());
     }
 
     private void send(String topic, String key, String value) {
