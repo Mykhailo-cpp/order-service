@@ -61,7 +61,7 @@ class OrderServiceImplTest {
 
         OrderCreatedEvent expected = new OrderCreatedEvent(id, 7L, "keyboard", 2, createdAt);
         assertThat(result).isEqualTo(expected);
-        verify(orderProducer).publish(expected);
+        verify(orderProducer).publishCreated(expected);
     }
 
     @Test

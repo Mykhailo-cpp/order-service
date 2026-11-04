@@ -1,7 +1,9 @@
 package com.example.order_service.kafka;
 
 import com.example.order_service.config.KafkaTopicConfig;
+import com.example.order_service.dto.OrderCancelledEvent;
 import com.example.order_service.dto.OrderCreatedEvent;
+import com.example.order_service.dto.OrderUpdatedEvent;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -21,32 +23,53 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class OrderProducerTest {
 
+    private static final String TOPIC = KafkaTopicConfig.ORDER_EVENTS_TOPIC;
+
     @Mock
-    private KafkaTemplate<String, OrderCreatedEvent> kafkaTemplate;
+    private KafkaTemplate<String, Object> kafkaTemplate;
 
     @InjectMocks
     private OrderProducer orderProducer;
 
-    private final OrderCreatedEvent event =
-            new OrderCreatedEvent(UUID.randomUUID(), 1L, "monitor", 1, LocalDateTime.now());
+    private final UUID orderId = UUID.randomUUID();
 
     @Test
-    void publish_sendsEventToOrderCreatedTopicKeyedByOrderId() {
-        when(kafkaTemplate.send(KafkaTopicConfig.ORDER_CREATED_TOPIC, event.orderId().toString(), event))
-                .thenReturn(new CompletableFuture<>());
+    void publishCreated_sendsToOrderEventsTopicKeyedByCustomerId() {
+        OrderCreatedEvent event = new OrderCreatedEvent(orderId, 7L, "monitor", 1, LocalDateTime.now());
+        when(kafkaTemplate.send(TOPIC, "7", event)).thenReturn(new CompletableFuture<>());
 
-        orderProducer.publish(event);
+        orderProducer.publishCreated(event);
 
-        verify(kafkaTemplate).send(KafkaTopicConfig.ORDER_CREATED_TOPIC, event.orderId().toString(), event);
+        verify(kafkaTemplate).send(TOPIC, "7", event);
     }
 
     @Test
-    void publish_whenBrokerSendFails_doesNotThrow() {
-        CompletableFuture<SendResult<String, OrderCreatedEvent>> failed = new CompletableFuture<>();
-        failed.completeExceptionally(new RuntimeException("broker unavailable"));
-        when(kafkaTemplate.send(KafkaTopicConfig.ORDER_CREATED_TOPIC, event.orderId().toString(), event))
-                .thenReturn(failed);
+    void publishUpdated_sendsToOrderEventsTopicKeyedByCustomerId() {
+        OrderUpdatedEvent event = new OrderUpdatedEvent(orderId, "monitor", 3, LocalDateTime.now());
+        when(kafkaTemplate.send(TOPIC, "7", event)).thenReturn(new CompletableFuture<>());
 
-        assertThatCode(() -> orderProducer.publish(event)).doesNotThrowAnyException();
+        orderProducer.publishUpdated(event, 7L);
+
+        verify(kafkaTemplate).send(TOPIC, "7", event);
+    }
+
+    @Test
+    void publishCancelled_sendsToOrderEventsTopicKeyedByCustomerId() {
+        OrderCancelledEvent event = new OrderCancelledEvent(orderId, "changed my mind", LocalDateTime.now());
+        when(kafkaTemplate.send(TOPIC, "7", event)).thenReturn(new CompletableFuture<>());
+
+        orderProducer.publishCancelled(event, 7L);
+
+        verify(kafkaTemplate).send(TOPIC, "7", event);
+    }
+
+    @Test
+    void publishCreated_whenBrokerSendFails_doesNotThrow() {
+        OrderCreatedEvent event = new OrderCreatedEvent(orderId, 7L, "monitor", 1, LocalDateTime.now());
+        CompletableFuture<SendResult<String, Object>> failed = new CompletableFuture<>();
+        failed.completeExceptionally(new RuntimeException("broker unavailable"));
+        when(kafkaTemplate.send(TOPIC, "7", event)).thenReturn(failed);
+
+        assertThatCode(() -> orderProducer.publishCreated(event)).doesNotThrowAnyException();
     }
 }
