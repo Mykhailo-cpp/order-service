@@ -18,7 +18,7 @@ public record ErrorResponse(
         @Schema(example = "ORDER_NOT_FOUND")
         String error,
 
-        @Schema(example = "Order not found with id: 123")
+        @Schema(example = "Order with id 3fa85f64-5717-4562-b3fc-2c963f66afa6 was not found")
         String message,
 
         @Schema(description = "Field-level validation errors, if applicable")
