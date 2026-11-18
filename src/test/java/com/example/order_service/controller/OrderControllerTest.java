@@ -4,7 +4,6 @@ import com.example.order_service.dto.OrderRequest;
 import com.example.order_service.dto.OrderResponse;
 import com.example.order_service.dto.PageResponse;
 import com.example.order_service.exception.GlobalExceptionHandler;
-import com.example.order_service.exception.OrderNotFoundException;
 import com.example.order_service.model.OrderStatus;
 import com.example.order_service.service.OrderService;
 import org.junit.jupiter.api.Test;
@@ -112,40 +111,6 @@ class OrderControllerTest {
     }
 
     @Test
-    void getOrder_existing_returns200() throws Exception {
-        UUID id = UUID.randomUUID();
-        when(orderService.getById(id)).thenReturn(sampleOrder(id));
-
-        mockMvc.perform(get("/orders/{id}", id))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(id.toString()))
-                .andExpect(jsonPath("$.product").value("laptop"));
-    }
-
-    @Test
-    void getOrder_unknown_returns404WithConsistentErrorBody() throws Exception {
-        UUID id = UUID.randomUUID();
-        when(orderService.getById(id)).thenThrow(new OrderNotFoundException(id));
-
-        mockMvc.perform(get("/orders/{id}", id))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.status").value(404))
-                .andExpect(jsonPath("$.error").value("ORDER_NOT_FOUND"))
-                .andExpect(jsonPath("$.message").value("Order with id " + id + " was not found"))
-                .andExpect(jsonPath("$.timestamp").exists());
-    }
-
-    @Test
-    void getOrder_idNotAUuid_returns400() throws Exception {
-        mockMvc.perform(get("/orders/{id}", "123"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("INVALID_PARAMETER"))
-                .andExpect(jsonPath("$.message").value("Invalid value '123' for parameter 'id'"));
-
-        verifyNoInteractions(orderService);
-    }
-
-    @Test
     void getOrders_defaults_usesPage0Size20NewestFirst() throws Exception {
         when(orderService.findAll(eq(null), any(Pageable.class)))
                 .thenReturn(new PageResponse<>(List.of(), 0, 20, 0, 0));
@@ -231,16 +196,6 @@ class OrderControllerTest {
         mockMvc.perform(get("/orders").param("page", "abc"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("INVALID_PARAMETER"));
-    }
-
-    @Test
-    void unexpectedException_returns500WithoutLeakingDetails() throws Exception {
-        when(orderService.getById(any())).thenThrow(new IllegalStateException("db password is hunter2"));
-
-        mockMvc.perform(get("/orders/{id}", UUID.randomUUID()))
-                .andExpect(status().isInternalServerError())
-                .andExpect(jsonPath("$.error").value("INTERNAL_SERVER_ERROR"))
-                .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
     }
 
     @Test

@@ -1,10 +1,9 @@
 package com.example.order_service.service.impl;
 
-
 import com.example.order_service.dto.OrderCreatedEvent;
 import com.example.order_service.dto.OrderRequest;
-import com.example.order_service.dto.OrderUpdatedEvent;
-import com.example.order_service.dto.UpdateOrderRequest;
+import com.example.order_service.dto.OrderResponse;
+import com.example.order_service.dto.PageResponse;
 import com.example.order_service.kafka.OrderProducer;
 import com.example.order_service.model.Order;
 import com.example.order_service.model.OrderStatus;
@@ -12,6 +11,8 @@ import com.example.order_service.repository.OrderRepository;
 import com.example.order_service.service.OrderService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -68,5 +69,24 @@ public class OrderServiceImpl implements OrderService {
         else{
             log.warn("Order {} not found, ignoring inventory result", orderId);
         }
+    }
+
+    @Override
+    public PageResponse<OrderResponse> findAll(OrderStatus status, Pageable pageable) {
+        Page<Order> orders;
+        if (status == null) {
+            orders = orderRepository.findAll(pageable);
+        } else {
+            orders = orderRepository.findByStatus(status, pageable);
+        }
+
+        return PageResponse.from(orders.map(order -> new OrderResponse(
+                order.getId(),
+                order.getCustomerId(),
+                order.getProduct(),
+                order.getQuantity(),
+                order.getStatus(),
+                order.getCreatedAt()
+        )));
     }
 }
