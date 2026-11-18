@@ -32,7 +32,7 @@ public class OrderController {
     @ApiErrors.BadRequest
     @ApiErrors.ServerError
     @PostMapping
-    public ResponseEntity<OrderCreatedEvent> createOrder(@Valid @RequestBody OrderRequest request){
+    public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody OrderRequest request){
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(orderService.create(request));
     }
 

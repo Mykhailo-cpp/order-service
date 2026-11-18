@@ -10,7 +10,7 @@ import org.springframework.data.domain.Pageable;
 import java.util.UUID;
 
 public interface OrderService {
-    OrderCreatedEvent create(OrderRequest orderRequest);
+    OrderResponse create(OrderRequest orderRequest);
 
     void updateStatus(UUID orderId, OrderStatus status);
 

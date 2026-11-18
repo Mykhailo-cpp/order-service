@@ -55,7 +55,7 @@ class OrderServiceImplTest {
             return o;
         });
 
-        OrderCreatedEvent result = orderService.create(new OrderRequest(7L, "keyboard", 2));
+        OrderResponse result = orderService.create(new OrderRequest(7L, "keyboard", 2));
 
         ArgumentCaptor<Order> saved = ArgumentCaptor.forClass(Order.class);
         verify(orderRepository).save(saved.capture());

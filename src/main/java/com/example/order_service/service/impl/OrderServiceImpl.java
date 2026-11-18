@@ -5,6 +5,7 @@ import com.example.order_service.dto.OrderRequest;
 import com.example.order_service.dto.OrderResponse;
 import com.example.order_service.dto.PageResponse;
 import com.example.order_service.kafka.OrderProducer;
+import com.example.order_service.mapper.OrderMapper;
 import com.example.order_service.model.Order;
 import com.example.order_service.model.OrderStatus;
 import com.example.order_service.repository.OrderRepository;
@@ -27,32 +28,21 @@ public class OrderServiceImpl implements OrderService {
 
     private final OrderRepository orderRepository;
     private final OrderProducer orderProducer;
+    private final OrderMapper orderMapper;
 
     @Override
-    public OrderCreatedEvent create(OrderRequest orderRequest) {
-        Order order = Order.builder()
-                .customerId(orderRequest.customerId())
-                .product(orderRequest.product())
-                .quantity(orderRequest.quantity())
-                .status(OrderStatus.NEW)
-                .createdAt(LocalDateTime.now())
-                .build();
+    public OrderResponse create(OrderRequest orderRequest) {
+        Order order = orderMapper.toEntity(orderRequest);
+        order.setStatus(OrderStatus.NEW);
+        order.setCreatedAt(LocalDateTime.now());
 
         Order savedOrder = orderRepository.save(order);
 
         log.info("Created order with ID: {}", savedOrder.getId());
 
-        OrderCreatedEvent event = new OrderCreatedEvent(
-                savedOrder.getId(),
-                savedOrder.getCustomerId(),
-                savedOrder.getProduct(),
-                savedOrder.getQuantity(),
-                savedOrder.getCreatedAt()
-        );
+        orderProducer.publishCreated(orderMapper.toCreatedEvent(savedOrder));
 
-        orderProducer.publishCreated(event);
-
-        return event;
+        return orderMapper.toResponse(savedOrder);
     }
 
     @Override
@@ -80,13 +70,6 @@ public class OrderServiceImpl implements OrderService {
             orders = orderRepository.findByStatus(status, pageable);
         }
 
-        return PageResponse.from(orders.map(order -> new OrderResponse(
-                order.getId(),
-                order.getCustomerId(),
-                order.getProduct(),
-                order.getQuantity(),
-                order.getStatus(),
-                order.getCreatedAt()
-        )));
+        return PageResponse.from(orders.map(orderMapper::toResponse));
     }
 }
